@@ -1,4 +1,5 @@
 from flask import Flask, request, abort
+import requests
 from collections import defaultdict
 
 from linebot.v3 import (
@@ -12,7 +13,7 @@ from linebot.v3.messaging import (
     ApiClient,
     MessagingApi,
     ReplyMessageRequest,
-    TextMessage, ImageMessage
+    TextMessage
 )
 from linebot.v3.webhooks import (
     MessageEvent,
@@ -57,28 +58,26 @@ def callback():
     return 'OK'
 
 
-user_info_dict = defaultdict(
-    lambda: {'entities': list(), 'previous_intent': '閒聊'})
+# Key: User id, Value: dictionary
+user_info_dict = defaultdict(lambda:
+                             {'entities': list(), 'previous_intent': '閒聊'}
+                             )
 
 
 @handler.add(MessageEvent, message=TextMessageContent)
-def handle_message(event):
+def handle_text_message(event):
     user_message = event.message.text
     user_id = event.source.user_id
 
     # 取得名詞實體
     ner_tuples = get_ner(ckip_model, user_message)
-    app.logger.info("User: " + user_message)  # 使用者講的話
     user_info_dict[user_id]['entities'].extend(ner_tuples)  # 記錄使用者資料，目前存在記憶體里面
-    print("\tNER tuples: ", ner_tuples)  # 使用者的話裡頭，可以取得的名詞實體。
 
     # 辨識意圖
-    predefine_intents = ['天氣', '閒聊']
+    predefine_intents = ['天氣', '閒聊']  # 目前有的 intent
     intent = recognize_intent(user_message, predefine_intents)
     previous_intent = user_info_dict[user_id]['previous_intent']
 
-    print("Intent: ", intent)
-    print("Pre-Intent: ", previous_intent)
     # 指令集
     # 預計的指令格式：!天氣 桃園市 臺北市 花蓮縣
     if user_message.startswith("!天氣") or \
@@ -94,6 +93,10 @@ def handle_message(event):
     # 更新意圖
     user_info_dict[user_id]['previous_intent'] = intent
 
+    # log
+    app.logger.info("User: " + user_message)  # 使用者講的話
+    app.logger.info("\tNER tuples: " + str(ner_tuples))  # 使用者的話裡頭，可以取得的名詞實體。
+    app.logger.info("\tIntent: " + intent + ", Pre-Intent: " + previous_intent)
     app.logger.info("Bot: " + chatgpt_response)  # BOT 講的話
     with ApiClient(configuration) as api_client:
         line_bot_api = MessagingApi(api_client)
@@ -107,35 +110,8 @@ def handle_message(event):
         )
 
 
-# 處理收到的圖片訊息
-@handler.add(MessageEvent, message=ImageMessageContent)
-def handle_image_message(event):
-    # 取得圖片訊息的 ID
-    image_id = event.message.id
-
-    with ApiClient(configuration) as api_client:
-        line_bot_api = MessagingApi(api_client)
-        # 下載圖片
-        message_content = line_bot_api.get_message_content(image_id)
-        with open(f"{image_id}.jpg", 'wb') as f:
-            for chunk in message_content.iter_content():
-                f.write(chunk)
-        line_bot_api.reply_message_with_http_info(
-            ReplyMessageRequest(
-                reply_token=event.reply_token,
-                messages=[
-                    TextMessage(text="Get Image")
-                ]
-            )
-        )
-
-
-# 意圖:查詢天氣
-
-
 def search_weather(user_message, user_id):
     cities = user_message.split()[1:]
-    print("cities: ", cities)
     if cities:  # 假設指令有給地區訊息
         response = forecast_weather(cities)
     else:  # 假設指令沒給地區訊息
@@ -150,6 +126,45 @@ def search_weather(user_message, user_id):
             response = '請給我一個縣市名稱，方便讓我查詢天氣唷！'
 
     return response
+
+
+@handler.add(MessageEvent, message=ImageMessageContent)
+def handle_image_message(event):
+    image_id = event.message.id
+    response_to_user = get_line_image_content(image_id)
+
+    with ApiClient(configuration) as api_client:
+        line_bot_api = MessagingApi(api_client)
+        line_bot_api.reply_message_with_http_info(
+            ReplyMessageRequest(
+                reply_token=event.reply_token,
+                messages=[TextMessage(text=response_to_user)]
+            )
+        )
+
+
+def get_line_image_content(image_id):
+    # 拿圖片的資料
+    image_url = f'https://api-data.line.me/v2/bot/message/{image_id}/content'
+    response = requests.get(
+        url=image_url,
+        headers={
+            'Authorization': f'Bearer {LINEBOT_ACCESS_TOKEN}',
+            'Content-Type': 'image/png'
+        }
+    )
+
+    app.logger.info("Get Image Content：" + str(response.status_code))
+    if response.status_code > 200:
+        # 取得圖片有問題，可能是line server的問題‧
+        response_to_user = '找不到圖片。'
+    else:
+        with open("image.png", 'wb') as image_file:
+            image_file.write(response.content)
+            image_file.flush()
+        response_to_user = '找到圖片了。'
+
+    return response_to_user
 
 
 if __name__ == "__main__":
