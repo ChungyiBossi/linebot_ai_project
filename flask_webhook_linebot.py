@@ -13,7 +13,7 @@ from linebot.v3.messaging import (
     ApiClient,
     MessagingApi,
     ReplyMessageRequest,
-    TextMessage
+    TextMessage, ImageMessage
 )
 from linebot.v3.webhooks import (
     MessageEvent,
@@ -24,10 +24,16 @@ from linebot.v3.webhooks import (
 from chatgpt_api import openai_chatgpt, recognize_intent
 
 # 天氣預報
-from weather_forecast import forecast_weather
+from weather_forecast_0415 import forecast_weather
 
 # CKIP Tools
 from ckip_transformer_api import load_ner_driver, get_ner
+
+# OpenCV Face Detection
+from opencv_face_detector import detect_faces
+
+# Imgur Upload
+from imgur_upload import upload_image_to_imgur
 
 # IMPORT 密碼進來
 from KEYS import LINEBOT_ACCESS_TOKEN, LINEBOT_SECRET_KEY
@@ -131,19 +137,18 @@ def search_weather(user_message, user_id):
 @handler.add(MessageEvent, message=ImageMessageContent)
 def handle_image_message(event):
     image_id = event.message.id
-    response_to_user = get_line_image_content(image_id)
-
+    reply_message = get_image_reply_message(image_id)  # 確定取得圖片
     with ApiClient(configuration) as api_client:
         line_bot_api = MessagingApi(api_client)
         line_bot_api.reply_message_with_http_info(
             ReplyMessageRequest(
                 reply_token=event.reply_token,
-                messages=[TextMessage(text=response_to_user)]
+                messages=reply_message
             )
         )
 
 
-def get_line_image_content(image_id):
+def get_image_reply_message(image_id):
     # 拿圖片的資料
     image_url = f'https://api-data.line.me/v2/bot/message/{image_id}/content'
     response = requests.get(
@@ -153,18 +158,30 @@ def get_line_image_content(image_id):
             'Content-Type': 'image/png'
         }
     )
-
     app.logger.info("Get Image Content：" + str(response.status_code))
+
+    reply_message = list()
     if response.status_code > 200:
         # 取得圖片有問題，可能是line server的問題‧
-        response_to_user = '找不到圖片。'
+        text_response_to_user = '找不到圖片。'
     else:
-        with open("image.png", 'wb') as image_file:
+        # OpenCV 臉部辨識
+        with open("image.jpg", 'wb') as image_file:
             image_file.write(response.content)
             image_file.flush()
-        response_to_user = '找到圖片了。'
-
-    return response_to_user
+        text_response_to_user = '找到圖片了。'
+        number_of_faces = detect_faces('image.jpg')
+        if number_of_faces > 0:  # 當臉被找到，修改文字回覆
+            # 文字回覆
+            text_response_to_user = text_response_to_user + \
+                f" 找到{number_of_faces}張臉。"
+            # 圖片回覆
+            link = upload_image_to_imgur('image_faces.jpg')  # 上傳到 imgur
+            linebot_image_mesaage = ImageMessage(
+                originalContentUrl=link, previewImageUrl=link)
+            reply_message.append(linebot_image_mesaage)
+    reply_message.append(TextMessage(text=text_response_to_user))
+    return reply_message
 
 
 if __name__ == "__main__":

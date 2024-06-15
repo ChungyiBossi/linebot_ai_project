@@ -1,4 +1,11 @@
 KEYS.py
 *.jpg
 *.jpeg
+
+# computer vision model
+cv_model/*.tflite
+cv_model/*.xml
+
+# vscode workspace and env folder
 linebot_ai_project_env
+linebot_ai_project.code-workspace
