@@ -3,7 +3,7 @@
     * pip install flask line-bot-sdk
     * 程式碼我會放在雲端硬碟，請見群組的記事本
 2. 檢查ngrok的auth-token是否有設定，他相當於你的ngrok身分ID
-    * 下載一個ngrok.exe，並且放到你的工作目錄底下
+    * 下載一個[ngrok](https://ngrok.com/download)，並且放到你的工作目錄底下
     * .\ngrok config add-authtoken xxxxxxxx
 3. 啟動服務
     * 把flask app 跑起來：
