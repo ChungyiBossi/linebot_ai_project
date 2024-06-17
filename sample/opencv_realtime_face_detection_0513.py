@@ -6,7 +6,7 @@ capture = cv2.VideoCapture(0)
 time.sleep(3)
 if capture.isOpened():
     face_detector = cv2.CascadeClassifier(
-        "../cv_model/haarcascade_frontalface_default.xml")
+        "cv_model/haarcascade_frontalface_default.xml")
     while True:
         success, frame = capture.read()
         if success:

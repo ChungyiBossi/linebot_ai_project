@@ -3,7 +3,7 @@ import os
 
 # 創建人臉偵測物件
 face_detector = cv2.CascadeClassifier(
-    "../cv_model/haarcascade_frontalface_default.xml")
+    "cv_model/haarcascade_frontalface_default.xml")
 
 image_dir_path = "./images/"
 for image_file_name in os.listdir(image_dir_path):
