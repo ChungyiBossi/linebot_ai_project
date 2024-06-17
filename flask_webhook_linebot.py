@@ -24,7 +24,7 @@ from linebot.v3.webhooks import (
 from chatgpt_api import openai_chatgpt, recognize_intent
 
 # 天氣預報
-from weather_forecast_0415 import forecast_weather
+from weather_forecast import forecast_weather
 
 # CKIP Tools
 from ckip_transformer_api import load_ner_driver, get_ner
